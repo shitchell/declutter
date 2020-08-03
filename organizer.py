@@ -2,28 +2,41 @@
 # -*- encoding: utf-8 -*-
 
 """
-File Organizer
+Organizer TUI
 
 This module assists in the organization of files and directories. When run as a
 script, it accepts a list of filepaths as arguments.
 
-The list of paths is re-displayed to the user, then the user inputs a series of
-single-character shortcuts and directories, eg:
+To start the program prompts you for a series of single-character shortcuts
+followed by directories until an empty line is given, eg:
 
   $ Enter a shortcut and path (empty line when done): p ~/Pictures
+  $ Enter a shortcut and path (empty line when done): h ~/
+  $ Enter a shortcut and path (empty line when done):
 
-The user types control-D to finish entering shortcuts, and then each filepath
-is displayed one at a time. The user will type one of their defined shortcuts,
-and the current file will be staged to move to that location.
+Each file is then moved to a new location using one of the defined shortcuts.
 
-The left and right arrow keys can be used to move back to a previous file (to
-change the desired location, for example). The up and down arrows mark the file
-to be kept in its current location.
+Once files are moved using Organizer, their new location is stored in a config
+file. This allows you to periodically organize directories while skipping
+previously organized files. The -H option disables loading or saving of history.
 
-Shortcuts and relocated filepaths are stored in ~/.organizer.json. Successive
-uses of organizer can optionally ignore previously organized files which are
-assumed to already be in their desired location.
+Shortcuts are also saved for future use. The -S option disables loading or
+saving of shortcuts. Both filepath and shortcut history can both be disabled
+simultaneously with -i
+
+Other Keys
+-Left:  Go back to the previous file (eg, to change its location)
+-Right: Skip the current file without saving it to history
+-Down:  Keep the file in its current location, saving it to history
+-Up:    Pause organizing to add new shortcuts
+-?:     Show shortcuts and commands
 """
+
+# TODO
+# 
+# Code cleanup
+# Switch default quiet behavior of _output
+# Implement commented out argparse options
 
 import os
 import _io
@@ -38,25 +51,28 @@ from typing import Union, Tuple, Dict, Optional, List
 
 # Setup settings
 parser: argparse.ArgumentParser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument("-r", "--recursive", help="TODO", action="store_true")
-parser.add_argument("-d", "--depth", help="TODO", type=int, default=0)
+#parser.add_argument("-r", "--recursive", help="TODO", action="store_true")
+#parser.add_argument("-d", "--depth", help="TODO", type=int, default=0)
 parser.add_argument("--history", help="TODO", default=Path.home().joinpath(".organizer.json"))
 parser.add_argument("-i", "--ignore-history", help="TODO", action="store_true")
-parser.add_argument("-S", "--ignore-history-shortcuts", help="TODO", action="store_true")
-parser.add_argument("-P", "--ignore-history-filepaths", help="TODO", action="store_true")
-parser.add_argument("-n", "--no-save", help="TODO", action="store_true")
-parser.add_argument("-s", "--skip-setup", help="TODO", action="store_true")
+#parser.add_argument("-S", "--ignore-history-shortcuts", help="TODO", action="store_true")
+#parser.add_argument("-P", "--ignore-history-filepaths", help="TODO", action="store_true")
+#parser.add_argument("-n", "--no-save", help="TODO", action="store_true")
+#parser.add_argument("-s", "--skip-setup", help="TODO", action="store_true")
 parser.add_argument("-q", "--quiet", help="TODO", action="store_true")
-parser.add_argument("-v", "--verbose", help="TODO", action="store_true")
+#parser.add_argument("-v", "--verbose", help="TODO", action="store_true")
 parser.add_argument("paths", nargs="+", help="Files and directories to organize")
 parser.epilog = __doc__
 options: argparse.Namespace = parser.parse_args()
 
+class ReservedShortcutException(Exception): pass
 class EmptyInputException(Exception): pass
 class InputFormatException(Exception): pass
 class InvalidPathException(Exception): pass
 class InsufficientPermissionsException(Exception): pass
 class RenameException(Exception): pass
+
+RESERVED_KEYS = "?"
 
 def load_history(path: Union[str, Path] = options.history) -> Dict[str, dict]:
     history: dict = {"shortcuts": {}, "savedpaths": {}}
@@ -92,20 +108,8 @@ def update_history(shortcuts, savedpaths, path: Union[str, Path] = options.histo
     json.dump(history, savefile, indent=4, sort_keys=True)
     savefile.close()
 
-# Returns the keycode for a single keypress from standard input
-# https://pypi.org/project/readchar/
-def getkey() -> str:
-    c1 = getch()
-    if ord(c1) != 0x1b:
-        return c1
-    c2 = getch()
-    if ord(c2) != 0x5b:
-        return c1 + c2
-    c3 = getch()
-    if ord(c3) != 0x33:
-        return c1 + c2 + c3
-    c4 = getch()
-    return c1 + c2 + c3 + c4
+# Returns a single byte from stdin (not necessarily the full keycode for
+# certain special keys)
 # https://gist.github.com/jasonrdsouza/1901709#gistcomment-2734411
 def getch() -> str:
     def _getch() -> str:
@@ -127,11 +131,29 @@ def getch() -> str:
             return "" # handle ctrl+C
         return ch
     return _getch()
-
+# Returns the (full) keycode for a single keypress from standard input
+# https://pypi.org/project/readchar/
+def getkey() -> str:
+    c1 = getch()
+    if ord(c1) != 0x1b:
+        return c1
+    c2 = getch()
+    if ord(c2) != 0x5b:
+        return c1 + c2
+    c3 = getch()
+    if ord(c3) != 0x33:
+        return c1 + c2 + c3
+    c4 = getch()
+    return c1 + c2 + c3 + c4
+ 
 # Method for tab completion
 def _filepath_completer(text, state) -> Optional[str]:
     buffer = readline.get_line_buffer()
     line = readline.get_line_buffer().split()
+    # Only autocomplete the second item
+    if len(line) != 2 and not buffer.endswith(" "):
+        return None
+
     list_dir: str
     if not line or buffer.endswith(" "):
         list_dir = "."
@@ -160,12 +182,20 @@ def input_shortcut() -> Dict[str, str]:
     if not line.strip():
         raise EmptyInputException()
 
-    # Lines must contain at least one space
-    if not " " in line:
+    parts: list = line.split(maxsplit=1)
+
+    # Must be 2 words/parts
+    if len(parts) != 2:
         raise InputFormatException()
 
-    (char, filepath) = line.split(maxsplit=1)
-    path: Path = Path(filepath)
+    # Collect the parts
+    char: str = parts[0]
+    filepath: str = parts[1]
+    path: Path = Path(filepath).expanduser()
+
+    # Cannot use reserved keys
+    if char in RESERVED_KEYS:
+        raise ReservedShortcutException(char)
 
     # Shortcut can only be one character
     if len(char) > 1:
@@ -173,7 +203,7 @@ def input_shortcut() -> Dict[str, str]:
 
     # Path must exist and be a directory
     if not path.is_dir():
-        raise InvalidPathException()
+        raise InvalidPathException(path)
 
     # Directory must be writable
     if not os.access(path, os.W_OK):
@@ -188,12 +218,14 @@ def input_shortcuts() -> Dict[str, str]:
         try:
             shortcut = input_shortcut()
         except InputFormatException:
-            _output("Please enter a single character followed by a directory, eg:")
-            _output("d ~/Downloads")
-        except InvalidPathException:
-            _output("The path entered is not a directory", ignore_quiet=True)
+            _output("Please enter a single character followed by a directory, eg:", ignore_quiet=True)
+            _output("d ~/Downloads", ignore_quiet=True)
+        except InvalidPathException as e:
+            _output(f"'{e}' is not a directory", ignore_quiet=True)
         except InsufficientPermissionsException:
             _output("You do not have sufficient permissions to move files there", ignore_quiet=True)
+        except ReservedShortcutException as e:
+            _output(f"The '{e}' character is reserved", ignore_quiet=True)
         except (EOFError, EmptyInputException):
             finished = True
         else:
@@ -249,7 +281,7 @@ def _run() -> None:
         quit()
 
     # Show list of files to be organized
-    _output("Sorting files:")
+    _output("Organizing files:")
     _output(", ".join(options.paths))
     _output("")
 
@@ -356,7 +388,7 @@ def _run() -> None:
                     continue
 
                 try:
-                    filepath_new: str = shutil.move(filestr, destination)
+                    filepath_new: str = shutil.move(filestr, os.path.expanduser(destination))
                 except InsufficientPermissionsException:
                     _output("Insufficient permission to access:", destination, ignore_quiet=True)
                     _output("Please correct the permissions and try again, or skip this file (directional arrow keys)", ignore_quiet=True)

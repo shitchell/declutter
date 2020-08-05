@@ -32,12 +32,6 @@ Other Keys
 -?:     Show shortcuts and commands
 """
 
-# TODO
-# 
-# Code cleanup
-# Switch default quiet behavior of _output
-# Implement commented out argparse options
-
 import os
 import _io
 import sys
@@ -72,7 +66,7 @@ class InvalidPathException(Exception): pass
 class InsufficientPermissionsException(Exception): pass
 class RenameException(Exception): pass
 
-RESERVED_KEYS = "?"
+RESERVED_KEYS = "?-"
 
 def load_history(path: Union[str, Path] = options.history) -> Dict[str, dict]:
     history: dict = {"shortcuts": {}, "savedpaths": {}}
@@ -228,6 +222,8 @@ def input_shortcuts() -> Dict[str, str]:
             _output(f"The '{e}' character is reserved", ignore_quiet=True)
         except (EOFError, EmptyInputException):
             finished = True
+        except Exception as e:
+            _output(f"[error] {e}")
         else:
             shortcuts.update(shortcut)
 
@@ -348,10 +344,35 @@ def _run() -> None:
                 valid_key = True
                 _output("...", ignore_quiet=True)
                 _show_controls(shortcuts)
+            elif key == "-":
+                valid_key = True
+                try:
+                    os.remove(filestr)
+                except Exception as e:
+                    _output(f"[error] Couldn't delete: {e}")
+                else:
+                    del options.paths[i]
+                    _output("deleted!")
+            elif key == "\r" or key == "\n":
+                # try to preview the file
+                try:
+                    with open(filestr, 'r') as preview:
+                        try:
+                            import pydoc
+                        except:
+                            _output(preview.read(200), ignore_quiet=True)
+                            _output(f"{filepath} -> ", end="", ignore_quiet=True)
+                        else:
+                            pydoc.pager(preview.read())
+                except Exception as e:
+                    _output(f"[error] Could not read file: {e}", ignore_quiet=True)
+                    _output(f"{filepath} -> ", end="", ignore_quiet=True)
             elif key == "\x1b[A": # up arrow
                 valid_key = True
                 _output("...", ignore_quiet=True)
-                input_shortcuts()
+                s: Dict[str, str] = input_shortcuts()
+                shortcuts.update(s)
+                f.write(str(shortcuts))
                 f.write("finished adding extra shortcuts")
                 f.flush()
             elif key == "\x1b[B": # down arrow

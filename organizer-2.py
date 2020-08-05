@@ -124,6 +124,7 @@ class OrganizedFile(type(Path())):
 class Organizer:
     files: List[OrganizedFile]
     shortcuts: Dict[str, Path]
+    _history: History
 
     def __init__(self, history: Union[str, Path] = ""):
         pass
@@ -200,30 +201,55 @@ class Shortcut:
     def as_dict(self) -> Dict[str, Path]:
         retun {self._key: self._path}
 
-def _run():
-    import argparse
+class TUI:
+    options: argparse.Namespace
+    _parser: argparse.ArgumentParser
+    _history: History
+    _organizer: Organizer
+    V_MAX = 6 # Only print if verbose
+    V_DEF = 3 # Default verbosity
+    V_MIN = 0 # Minimum required for functionality
 
-    # Setup settings
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    #parser.add_argument("-r", "--recursive", help="TODO", action="store_true")
-    #parser.add_argument("-d", "--depth", help="TODO", type=int, default=0)
-    parser.add_argument("--history", help="TODO", default=Path.home().joinpath(".declutterpy.json"))
-    parser.add_argument("-i", "--ignore-history", help="TODO", action="store_true")
-    #parser.add_argument("-S", "--ignore-history-shortcuts", help="TODO", action="store_true")
-    #parser.add_argument("-P", "--ignore-history-filepaths", help="TODO", action="store_true")
-    #parser.add_argument("-n", "--no-save", help="TODO", action="store_true")
-    #parser.add_argument("-s", "--skip-setup", help="TODO", action="store_true")
-    parser.add_argument("-q", "--quiet", help="TODO", action="store_true")
-    parser.add_argument("-v", "--verbose", help="TODO", action="count", default=0)
-    parser.add_argument("paths", nargs="+", help="Files and directories to organize")
-    parser.epilog = __doc__
-    options: argparse.Namespace = parser.parse_args()
+    def __init__(self, args: List[str] = None):
+        self._parse_args(args)
+        self._history = History()
+        self._organizer = Organizer()
 
-    def log(*args, level: int = 0, **kwargs):
+    def _parse_args(self, args: List[str] = None):
+        import argparse
+
+        # Setup settings
+        self._parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+        #parser.add_argument("-r", "--recursive", help="TODO", action="store_true")
+        #parser.add_argument("-d", "--depth", help="TODO", type=int, default=0)
+        parser.add_argument("--history", help="TODO", default=Path.home().joinpath(".declutterpy.json"))
+        parser.add_argument("-i", "--ignore-history", help="TODO", action="store_true")
+        #parser.add_argument("-S", "--ignore-history-shortcuts", help="TODO", action="store_true")
+        #parser.add_argument("-P", "--ignore-history-filepaths", help="TODO", action="store_true")
+        #parser.add_argument("-n", "--no-save", help="TODO", action="store_true")
+        #parser.add_argument("-s", "--skip-setup", help="TODO", action="store_true")
+        parser.add_argument("-q", "--quiet", help="TODO", action="store_true")
+        parser.add_argument("-v", "--verbose", help="TODO", action="count", default=0)
+        parser.add_argument("paths", nargs="+", help="Files and directories to organize")
+        parser.epilog = __doc__
+        
+        # Parse provided options if given, else command line options
+        if args:
+            self.options = parser.parse_args(args)
+        else:
+            self.options = parser.parse_args()
+
+    def printv(*args, level: int = 0, **kwargs):
         """
-        Print statement that prints information based on verbosity level.
+        Prints information based on an integer verbosity level. 3 variables are
+        defined to distinguish the main types of output:
+
+        TUI.V_MAX -> Print when verbose
+        TUI.V_DEF -> Default setting
+        TUI.V_MIN -> Only the minimum required to function
         """
-        pass
+        if level <= options.level:
+            print(*args, **kwargs)
 
     def getch() -> str:
         """
@@ -266,6 +292,21 @@ def _run():
         c4 = TUI.getch()
         return c1 + c2 + c3 + c4
 
-if __name__ == '__main__':
+    def _print_startup_information():
+        printv()
 
-    TUI.run(options)
+    def run(self):
+        """
+        Launch a text based interface to organize files
+        """
+        # Display loaded information (number of files and shortcuts)
+        if not self.options.skip_setup:
+            printv("Processing {} files".format(len(self._organizer.files)), level=V_DEF)
+            printv("", level=V_DEF)
+            printv("Loaded shortcuts:", level=V_DEF)
+            for shortcut in 
+        # Setup shortcuts
+
+    # Organize files
+if __name__ == '__main__':
+    TUI().run()

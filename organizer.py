@@ -141,7 +141,7 @@ def getkey() -> str:
     return c1 + c2 + c3 + c4
  
 # Method for tab completion
-def _filepath_completer(text, state) -> Optional[str]:
+def _shortcut_completer(text, state) -> Optional[str]:
     buffer = readline.get_line_buffer()
     line = readline.get_line_buffer().split()
     # Only autocomplete the second item
@@ -165,7 +165,7 @@ def _filepath_completer(text, state) -> Optional[str]:
         return None
 
 def input_filepath(prompt: str = "Enter a shortcut and path (empty line when done): ") -> str:
-    readline.set_completer(_filepath_completer)
+    readline.set_completer(_shortcut_completer)
     readline.parse_and_bind("tab: complete")
     return input(prompt)
 

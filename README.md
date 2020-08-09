@@ -1,11 +1,11 @@
-# organizer-tui
-A simple console program for quickly, efficiently organizing files
+# declutter
+A python package for keeping files organized
 
 [![asciicast](https://asciinema.org/a/351451.svg)](https://asciinema.org/a/351451)
 
 ## About
 
-organizer is called from the command line with any number of files/directories as arguments. The user then uses simple keystrokes to move each file to its desired location. Settings are saved for quicker start times, and filepaths are saved to optionally skip already-organized files in subsequent uses.
+`declutter` is called from the command line with any number of files/directories as arguments. The user then uses simple keystrokes to move each file to its desired location. Settings are saved for quicker start times, and filepaths are saved to optionally skip already-organized files in subsequent uses.
 
 ## Usage
 
@@ -20,7 +20,7 @@ organizer is called from the command line with any number of files/directories a
 
 #### Keyboard controls
 
-By default, when organizer launches, it prompts the user to enter a series of shortcuts in the format: `<single-char> <filepath>` eg: `d ~/Downloads`.
+By default, when `declutter` launches, it prompts the user to enter a series of shortcuts in the format: `<single-char> <filepath>` eg: `d ~/Downloads`.
 
 After shortcuts have been setup, each given file is listed. While organizing files, the following keys can be used:
 
